@@ -29,7 +29,7 @@ def merge_energy_and_forecast(energy_df, forecast_df):
     merged_df = pd.merge(
         energy_df, 
         forecast_df, 
-        how='left', 
+        how='inner', 
         left_on='dtm', 
         right_on='valid_datetime'
     )
