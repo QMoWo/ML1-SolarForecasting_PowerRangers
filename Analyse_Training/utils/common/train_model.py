@@ -5,8 +5,11 @@ from sklearn.linear_model import LinearRegression
 from utils.common.print_evaluation import print_evaluation
 
 
-def train_model(merged_df: pd.DataFrame, columns: list, y_column: str):
-
+def train_model(merged_df: pd.DataFrame, columns: list, y_column: str) -> tuple:
+    """
+    columns: list of columns to use for training
+    y_column: column to predict
+    """
     # one hot encode
     merged_df = pd.get_dummies(merged_df)
 
@@ -20,9 +23,9 @@ def train_model(merged_df: pd.DataFrame, columns: list, y_column: str):
 
 
     # scale features
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
+    # scaler = StandardScaler()
+    # X_train = scaler.fit_transform(X_train)
+    # X_test = scaler.transform(X_test)
 
     # fit model
     model = LinearRegression()
