@@ -3,6 +3,11 @@ import numpy as np
 from datetime import datetime
 import pandas as pd
 from sklego.preprocessing import RepeatingBasisFunction
+from astral.sun import elevation, azimuth
+from astral import Observer
+from astral import LocationInfo
+from astral.sun import sun
+from statsmodels.tsa.seasonal import STL
 
 async def create_rolling_avg(df):
     df['valid_datetime'] = pd.to_datetime(df['valid_datetime'])
@@ -225,4 +230,43 @@ async def create_rolling_average(df):
     df['rolling_mean_radiation'] = df['SolarDownwardRadiation'].rolling(window=3, min_periods=1).mean()
     df['rolling_mean_temperature'] = df['Temperature'].rolling(window=3, min_periods=1).mean()
     
+    return 
+
+async def astral(df):
+    city = LocationInfo("London", "England", "Europe/London", 51.5, -0.116)
+    features = ["sunrise", "sunset", "dawn", "dusk", "noon"]
+    for feature in features:
+        df[feature] = df["dtm"].apply(lambda x: sun(city.observer, x, tzinfo=city.timezone).get(feature))
+        df[feature] = pd.to_datetime(df[feature], errors='coerce')
+        df[feature] = df[feature].dt.round('h')
+        df[feature] = df[feature].dt.hour
+    df['sun_altitude'] = df["dtm"].apply(lambda x: elevation(city.observer, x))
+    df['sun_azimuth'] = df["dtm"].apply(lambda x: azimuth(city.observer, x))
+
+    return df
+
+async def split_datetime(df):
+    time_columns = ["dtm", "ref_energy", "valid_time", "ref_weather"]
+    for column in time_columns:
+        df[f"{column}_hour"] = df[column].dt.hour
+        df[f"{column}_day"] = df[column].dt.day
+        df[f"{column}_month"] = df[column].dt.month
+        df[f"{column}_year"] = df[column].dt.year
+        df[f"{column}_week"] = df[column].dt.isocalendar().week
+        df[f"{column}_weekday"] = df[column].dt.weekday
+        df[f"{column}_quarter"] = df[column].dt.quarter
+    return df
+
+async def deseasonalized_temperature(df):
+    period = 365
+    stl_temperature = STL(df['Temperature'], seasonal=13, period=period)
+    result_temperature = stl_temperature.fit()
+    df["seasonal_temperature"] = result_temperature.seasonal
+    return df
+
+async def forecast_diff(df):
+
+    df["energy_diff"] = (df['dtm'] - df['ref_energy']).dt.total_seconds() / 3600
+    df['energy_diff'] = df['energy_diff'].astype(int)
+
     return df
