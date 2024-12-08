@@ -2,3 +2,8 @@
 __pycache__
 
 /Analyse_Training/*.pkl
+
+**/.ipynb_checkpoints
+**/.virtual_documents/Analyse_Training
+**/.ropeproject
+ml1
