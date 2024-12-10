@@ -292,9 +292,9 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
 
     # Gradient Boosting
     gbr_param_grid = {
-        'n_estimators': [150],
-        'learning_rate': [0.1],
-        'max_depth': [5]
+        'n_estimators': [20, 40, 70, 100, 150],
+        'learning_rate': [0.05, 0.1],
+        'max_depth': [3, 5]
     }
     gbr_search = GridSearchCV(
         estimator=GradientBoostingRegressor(),
@@ -309,9 +309,9 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
 
 
     dt_param_grid = {
-        'max_depth': [5],          # Maximale Tiefe des Baums
-        'min_samples_split': [5],      # Minimale Anzahl Samples für Split
-        'min_samples_leaf': [5]        # Minimale Anzahl Samples in Blättern
+        'max_depth': [3, 5],          # Maximale Tiefe des Baums
+        'min_samples_split': [3, 5],      # Minimale Anzahl Samples für Split
+        'min_samples_leaf': [1, 3, 5]        # Minimale Anzahl Samples in Blättern
     }
     dt_search = GridSearchCV(
         estimator=DecisionTreeRegressor(),
@@ -355,10 +355,10 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     ])
 
     full_param_grid_rf = {
-            'stacking__final_estimator__n_estimators': [100],       # Anzahl der Bäume im Wald
-            'stacking__final_estimator__max_depth': [3],         # Maximale Tiefe der Bäume
-            'stacking__final_estimator__min_samples_split': [2],       # Mindestanzahl von Proben, um einen Knoten zu teilen
-            'stacking__final_estimator__min_samples_leaf': [1],         # Mindestanzahl von Proben pro Blattknoten
+            'stacking__final_estimator__n_estimators': [10, 30, 60, 100],       # Anzahl der Bäume im Wald
+            'stacking__final_estimator__max_depth': [3, 5],         # Maximale Tiefe der Bäume
+            'stacking__final_estimator__min_samples_split': [2, 5],       # Mindestanzahl von Proben, um einen Knoten zu teilen
+            'stacking__final_estimator__min_samples_leaf': [1, 3],         # Mindestanzahl von Proben pro Blattknoten
         }
 
 
