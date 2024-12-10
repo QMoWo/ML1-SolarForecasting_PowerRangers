@@ -4,40 +4,6 @@ import seaborn as sns
 import numpy as np
 
 
-def merge_energy_and_forecast(energy_df, forecast_df):
-    """
-    Funktion zum Zusammenführen von Energie- und Wettervorhersagedaten auf Basis von Zeitstempeln.
-
-    Parameter:
-    energy_df (DataFrame): DataFrame mit den Energiedaten (inkl. dtm).
-    forecast_df (DataFrame): DataFrame mit den Wettervorhersagen (inkl. ref_datetime und valid_time).
-    desired_date (str): Das gewünschte Datum (im Format 'YYYY-MM-DD'), das zum Filtern des zusammengeführten DataFrames verwendet wird.
-    max_rows (int): Maximale Anzahl der Zeilen, die angezeigt werden sollen (Standard ist 400).
-
-    Rückgabe:
-    DataFrame: Ein gefiltertes DataFrame, das nur die Zeilen für das angegebene Datum enthält.
-    """
-    
-    # Sicherstellen, dass die Zeitstempel als datetime interpretiert werden
-    energy_df['dtm'] = pd.to_datetime(energy_df['dtm'])
-    forecast_df['ref_datetime'] = pd.to_datetime(forecast_df['ref_datetime'])
-
-    # Berechnung des tatsächlichen Zeitpunkts der Vorhersage
-    forecast_df['valid_datetime'] = forecast_df['ref_datetime'] + pd.to_timedelta(forecast_df['valid_time'], unit='h')
-
-    # Zuordnung der Wettervorhersage zu den Energiedaten auf Basis von dtm und valid_datetime
-    merged_df = pd.merge(
-        energy_df, 
-        forecast_df, 
-        how='inner', 
-        left_on='dtm', 
-        right_on='valid_datetime'
-    )
-
-    
-    # Rückgabe des gefilterten DataFrames
-    return merged_df
-
 def plot_attribute_vs_label_filtered(merged_df):
     # Sicherstellen, dass der Datentyp von Solar_MWh korrekt ist
     merged_df['Solar_MWh'] = merged_df['Solar_MWh'].astype(float)

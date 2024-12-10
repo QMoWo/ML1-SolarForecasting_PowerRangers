@@ -1,42 +1,19 @@
 import pandas as pd
 import numpy as np
 import seaborn as sns
-from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
-from sklearn.feature_selection import f_regression, SelectKBest, mutual_info_regression
-from sklearn.model_selection import TimeSeriesSplit, KFold, GroupShuffleSplit, GroupKFold, train_test_split, GridSearchCV, cross_val_predict
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, OneHotEncoder
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
-from utils.common.print_evaluation import (print_evaluation_simple_model,
-    print_evaluation_stacking)
-from sklearn.model_selection import cross_val_score, cross_validate
-from sklearn.ensemble import StackingRegressor, RandomForestRegressor, BaggingRegressor, GradientBoostingRegressor
-from sklearn.linear_model import Ridge
-from sklearn.ensemble import RandomForestRegressor
+from utils.common.print_evaluation import (print_evaluation_simple_model, 
+                                           print_evaluation_DTR,
+                                           print_evaluation_stacking)
+from sklearn.ensemble import StackingRegressor, RandomForestRegressor, GradientBoostingRegressor
 from sklearn.tree import DecisionTreeRegressor
-import xgboost as xgb
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error
 from sklearn.compose import ColumnTransformer
 import matplotlib.pyplot as plt
-import statsmodels.api as sm
-
-
-
-
-
-# class OneHotEncoder(BaseEstimator, TransformerMixin):
-#     def __init__(self):
-#         self.columns = None
-
-#     def fit(self, X, y=None):
-#         self.columns = X.columns
-#         return self
-
-#     def transform(self, X):
-#         return pd.get_dummies(X[self.columns])
-
 
 
 def train_model(test_df: pd.DataFrame, columns: list, y_column: str) -> tuple:
@@ -85,19 +62,7 @@ def train_model(test_df: pd.DataFrame, columns: list, y_column: str) -> tuple:
     return model, evaluation, scaler, test_df.columns
 
 
-def train_model_cv(test_df: pd.DataFrame, columns: list, y_column: str, param_grid: dict) -> tuple:
-    """
-    Trains a Ridge regression model using GridSearchCV for hyperparameter tuning.
-
-    Parameters:
-        test_df (pd.DataFrame): Input DataFrame.
-        columns (list): List of columns to use for training.
-        y_column (str): Column to predict.
-        param_grid (dict): Hyperparameter grid for GridSearchCV.
-
-    Returns:
-        tuple: Best model, evaluation metrics, scaler, and selected feature columns.
-    """
+def train_model_cv(test_df: pd.DataFrame, columns: list, y_column: str, param_grid: dict, model: str) -> tuple:
     # Get target column and store it in y
     y = test_df.pop(y_column)
 
@@ -107,9 +72,8 @@ def train_model_cv(test_df: pd.DataFrame, columns: list, y_column: str, param_gr
     categorical_features = X_train.select_dtypes(include=['object', 'category']).columns
 
     numeric_transformer = StandardScaler()
-    # Preprocessing for categorical features: one-hot encoding
     categorical_transformer = OneHotEncoder(handle_unknown='ignore', sparse_output=True)
-    # Combine preprocessors in a column transformer
+
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', numeric_transformer, numeric_features),
@@ -117,46 +81,57 @@ def train_model_cv(test_df: pd.DataFrame, columns: list, y_column: str, param_gr
         ]
     )
 
-    X_train_transformed = preprocessor.fit_transform(X_train)
-    X_test_transformed = preprocessor.transform(X_test)
+    if model == 'ridge':
+        pipeline = Pipeline([
+            ('preprocessing', preprocessor),
+            ('ridge', Ridge())
+        ])
 
-    feature_names = preprocessor.get_feature_names_out()
+        grid_search = GridSearchCV(
+            estimator=pipeline,
+            param_grid={'ridge__' + key: value for key, value in param_grid.items()},
+            cv=5,
+            scoring='neg_root_mean_squared_error',
+            n_jobs=-1
+        )
+    elif model == 'lasso':
+        pipeline = Pipeline([
+            ('preprocessing', preprocessor),
+            ('lasso', Lasso())
+        ])
 
-    print(feature_names)
+        grid_search = GridSearchCV(
+            estimator=pipeline,
+            param_grid={'lasso__' + key: value for key, value in param_grid.items()},
+            cv=5,
+            scoring='neg_root_mean_squared_error',
+            n_jobs=-1
+        )
+    elif model == 'DTR':
+        pipeline = Pipeline([
+            ('preprocessing', preprocessor),
+            ('DTR', DecisionTreeRegressor())
+        ])
 
-    X_train = pd.DataFrame(
-        X_train_transformed.toarray(),
-        columns=preprocessor.get_feature_names_out()
-    )
-    X_test = pd.DataFrame(
-        X_test_transformed.toarray(),
-        columns=preprocessor.get_feature_names_out()
-    )
+        grid_search = GridSearchCV(
+            estimator=pipeline,
+            param_grid={'DTR__' + key: value for key, value in param_grid.items()},
+            cv=5,
+            scoring='neg_root_mean_squared_error',
+            n_jobs=-1
+        )
 
-    # Create pipeline
-    pipeline = Pipeline([
-        ('ridge', Ridge())
-    ])
-
-    tscv = TimeSeriesSplit(n_splits=5)
-
-    # Perform GridSearchCV
-    grid_search = GridSearchCV(
-        estimator=pipeline,
-        param_grid={'ridge__' + key: value for key, value in param_grid.items()},
-        cv=tscv,
-        scoring='neg_root_mean_squared_error',
-        n_jobs=-1
-    )
-
+    
     grid_search.fit(X_train, y_train)
 
-    # Get the best model and parameters
     best_pipeline = grid_search.best_estimator_
     best_params = grid_search.best_params_
-    best_score = -grid_search.best_score_  # Convert negative MSE back to positive
+    best_score = -grid_search.best_score_  
 
-    # Make predictions on train and test sets
+    preprocessor = best_pipeline.named_steps['preprocessing']
+    feature_names = preprocessor.get_feature_names_out()
+    
+
     y_train_pred = best_pipeline.predict(X_train)
     y_test_pred = best_pipeline.predict(X_test)
 
@@ -164,7 +139,7 @@ def train_model_cv(test_df: pd.DataFrame, columns: list, y_column: str, param_gr
     # y_test_pred = np.maximum(0, y_test_pred)
 
     plt.style.use('seaborn-v0_8-whitegrid')
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    fig, axes = plt.subplots(2, 2, figsize=(10, 10))
 
     # Oben links: Train - Tatsächlich vs Vorhergesagt
     axes[0,0].scatter(y_train, y_train_pred, alpha=0.5)
@@ -208,20 +183,34 @@ def train_model_cv(test_df: pd.DataFrame, columns: list, y_column: str, param_gr
     plt.title('Verteilung der Residuen')
     plt.xlabel('Residuen')
     plt.show()
-    # Evaluate the model
-    evaluation = print_evaluation_simple_model(
-        best_pipeline.named_steps['ridge'],
-        X_train,
-        X_test,
-        y_train,
-        y_test,
-        y_train_pred,
-        y_test_pred,
-        best_score,
-        feature_names,
-    )
 
-    return best_pipeline, evaluation, feature_names, best_params, preprocessor
+    if model == 'ridge' or model == 'lasso':
+        evaluation = print_evaluation_simple_model(
+            best_pipeline.named_steps[model],
+            X_train,
+            X_test,
+            y_train,
+            y_test,
+            y_train_pred,
+            y_test_pred,
+            best_score,
+            feature_names,
+        )
+    elif model == 'DTR':
+        evaluation = print_evaluation_DTR(
+            best_pipeline.named_steps[model],
+            X_train,
+            X_test,
+            y_train,
+            y_test,
+            y_train_pred,
+            y_test_pred,
+            best_score,
+            feature_names,
+        )
+
+    return best_pipeline, evaluation, feature_names, best_params
+    
 
 
 def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, param_grid: dict) -> tuple:
@@ -285,33 +274,32 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
 
     print("Feature preprocessing complete.")
 
-    tscv = TimeSeriesSplit(n_splits=5)
-
     # Ridge Regression
     ridge_param_grid = {
-        'alpha': np.linspace(0, 20, 20)  # Regularization strength
+        'alpha': np.linspace(0, 20, 20)  
     }
 
     ridge_search = GridSearchCV(
         estimator=Ridge(),
         param_grid=ridge_param_grid,
-        cv=tscv,
+        cv=5,
         scoring='neg_root_mean_squared_error',
         n_jobs=-1
     )
     ridge_search.fit(X_train, y_train)
     best_ridge = ridge_search.best_estimator_
     print(f"Best params Ridge: {ridge_search.best_params_}")
+
     # Gradient Boosting
     gbr_param_grid = {
-        'n_estimators': [100, 150],
-        'learning_rate': [0.01, 0.05, 0.1],
-        'max_depth': [3, 5]
+        'n_estimators': [150],
+        'learning_rate': [0.1],
+        'max_depth': [5]
     }
     gbr_search = GridSearchCV(
         estimator=GradientBoostingRegressor(),
         param_grid=gbr_param_grid,
-        cv=tscv,
+        cv=5,
         scoring='neg_root_mean_squared_error',
         n_jobs=-1
     )
@@ -319,32 +307,16 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     best_gbr = gbr_search.best_estimator_
     print(f"Best params GradientBoosting: {gbr_search.best_params_}")
 
-    # XGBoost
-    xgb_param_grid = {
-        'n_estimators': [100, 150],
-        'learning_rate': [0.01, 0.05, 0.1],
-        'max_depth': [3, 5]
-    }
-    xgb_search = GridSearchCV(
-        estimator=xgb.XGBRegressor(),
-        param_grid=xgb_param_grid,
-        cv=tscv,
-        scoring='neg_root_mean_squared_error',
-        n_jobs=-1
-    )
-    xgb_search.fit(X_train, y_train)
-    best_xgb = xgb_search.best_estimator_
-    print(f"Best params XGB: {xgb_search.best_params_}")
 
     dt_param_grid = {
-        'max_depth': [3, 5],          # Maximale Tiefe des Baums
-        'min_samples_split': [3, 5],      # Minimale Anzahl Samples für Split
-        'min_samples_leaf': [2, 5]        # Minimale Anzahl Samples in Blättern
+        'max_depth': [5],          # Maximale Tiefe des Baums
+        'min_samples_split': [5],      # Minimale Anzahl Samples für Split
+        'min_samples_leaf': [5]        # Minimale Anzahl Samples in Blättern
     }
     dt_search = GridSearchCV(
         estimator=DecisionTreeRegressor(),
         param_grid=dt_param_grid,
-        cv=tscv,
+        cv=5,
         scoring='neg_root_mean_squared_error',
         n_jobs=-1
     )
@@ -352,56 +324,27 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     best_dt = dt_search.best_estimator_
     print(f"Best params DTR: {dt_search.best_params_}")
 
-    rf_param_grid = {
-        'n_estimators': [100, 150],
-        'max_depth': [3, 5],
-        'min_samples_split': [3, 5],
-        'max_samples': [0.7, 0.9]       # Minimale Anzahl Samples in Blättern
-    }
-    rf_search = GridSearchCV(
-        estimator=RandomForestRegressor(),
-        param_grid=rf_param_grid,
-        cv=tscv,
-        scoring='neg_root_mean_squared_error',
-        n_jobs=-1
-    )
-    rf_search.fit(X_train, y_train)
-    best_rf = rf_search.best_estimator_
-    print(f"Best params RF: {rf_search.best_params_}")
 
     print("Base learners optimized!")
 
     # Create stacking pipeline
     base_learners = [
         ('ridge', Pipeline([
-            #('scaler', StandardScaler()),
             #('select', SelectKBest(k=20)),
             ('model', best_ridge)
         ])),
         (('gbr', Pipeline([
-            #('scaler', StandardScaler()),
             #('select', SelectKBest(k=20)),
             ('model', best_gbr)
         ]))),
-        ('xgb', Pipeline([
-            #('scaler', StandardScaler()),
-            #('select', SelectKBest(k=20)),
-            ('model', best_xgb)
-        ])),
         ('dct', Pipeline([
-            # ('scaler', StandardScaler()),
             # ('select', SelectKBest(k=20)),
             ('model', best_dt)
-        ])),
-        ('rf', Pipeline([
-            # ('scaler', StandardScaler()),
-            # ('select', SelectKBest(k=20)),
-            ('model', best_rf)
         ]))
     ]
 
-    #final_estimator = RandomForestRegressor()
-    final_estimator = xgb.XGBRegressor()
+    final_estimator = RandomForestRegressor()
+    #final_estimator = xgb.XGBRegressor()
 
     pipeline = Pipeline([
         #('feature_selection', SelectKBest()),
@@ -412,11 +355,11 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     ])
 
     full_param_grid_rf = {
-        #'feature_selection__k': [40],
-        'stacking__final_estimator__n_estimators': [100, 150],
-        'stacking__final_estimator__max_depth': [3, 5],
-        'stacking__final_estimator__eta': [0.1, 0.2],
-    }
+            'stacking__final_estimator__n_estimators': [100],       # Anzahl der Bäume im Wald
+            'stacking__final_estimator__max_depth': [3],         # Maximale Tiefe der Bäume
+            'stacking__final_estimator__min_samples_split': [2],       # Mindestanzahl von Proben, um einen Knoten zu teilen
+            'stacking__final_estimator__min_samples_leaf': [1],         # Mindestanzahl von Proben pro Blattknoten
+        }
 
 
 
@@ -425,7 +368,7 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     grid_search = GridSearchCV(
         estimator=pipeline,
         param_grid=full_param_grid_rf,
-        cv=tscv,
+        cv=5,
         scoring='neg_root_mean_squared_error',
         n_jobs=-1
     )
@@ -437,6 +380,7 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     best_params = grid_search.best_params_
     print(f"Best params: {best_params}")
     best_score = -grid_search.best_score_
+    print(f"Best pipe: {best_pipeline}")
 
 
     # Make predictions
@@ -444,7 +388,7 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     y_test_pred = best_pipeline.predict(X_test)
 
     plt.style.use('seaborn-v0_8-whitegrid')
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    fig, axes = plt.subplots(2, 2, figsize=(10, 10))
 
     # Oben links: Train - Tatsächlich vs Vorhergesagt
     axes[0,0].scatter(y_train, y_train_pred, alpha=0.5)
@@ -488,6 +432,7 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     plt.title('Verteilung der Residuen')
     plt.xlabel('Residuen')
     plt.show()
+
     # Evaluate the model
     evaluation = print_evaluation_stacking(
         best_pipeline.named_steps['stacking'],

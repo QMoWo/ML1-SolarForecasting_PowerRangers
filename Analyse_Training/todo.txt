@@ -1,6 +1,0 @@
-1. trainiere simple models in einem Jupyter notebook und bereite es auf mit grafiken und Kommentaren
-
-2. trainiere diese models nochmal aber mit Hyperparametersuche
-    -> beantworte Frage bei welchen models es besonders sinn macht so eine Suche zu machen
-
-3. printe bei allen modellen immer die wichtigsten features
