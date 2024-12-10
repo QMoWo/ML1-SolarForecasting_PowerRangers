@@ -23,7 +23,7 @@ async def create_rolling_avg(df):
     df = df.sort_values(by='valid_datetime')
 
     # Rolling Average (hier mit einem Fenster von 3, je nach Bedarf anpassen)
-    df['Rolling_Avg_SolarDownwardRadiation'] = df['SolarDownwardRadiation'].rolling(window=3).mean()
+    df['Rolling_Avg_SolarDownwardRadiation'] = df['SolarDownwardRadiation'].rolling(window=4).mean()
 
     # ersetze die NaN-Werte mit einem Fallback-Wert (z.B. dem Median)
     df['Rolling_Avg_SolarDownwardRadiation'].fillna(df['Median_SolarDownwardRadiation'], inplace=True)
@@ -68,6 +68,7 @@ async def create_adjusted_values(df):
     df['Temperature_sqaured'] = df['Temperature'] ** 2
 
     df['solar_efficiency'] = df["SolarDownwardRadiation"] * df["Solar_capacity_mwp"]
+    df['solar_temperature'] = df["Temperature"] * df["Solar_capacity_mwp"]
     df['SolarDownwardRadiation_CloudCover'] = df['SolarDownwardRadiation'] * df['CloudCover']
     df['SolarDownwardRadiation_Temperature'] = df['SolarDownwardRadiation'] * df['Temperature']
 
@@ -162,7 +163,7 @@ async def create_datetime_features(df):
     df = create_cyclical_features(df, 'day_of_year', 365)
 
     rbf_hour = RepeatingBasisFunction(
-        n_periods=12,
+        n_periods=3,
         remainder="drop",
         column="hour",
         input_range=(0, 23)
@@ -172,7 +173,7 @@ async def create_datetime_features(df):
         df[f'rbf_hour_{i}'] = hour_features[:, i]
 
     rbf_month = RepeatingBasisFunction(
-        n_periods=12,
+        n_periods=3,
         remainder="drop",
         column="month",
         input_range=(1, 12)
@@ -183,7 +184,7 @@ async def create_datetime_features(df):
 
 
     rbf_week = RepeatingBasisFunction(
-        n_periods=12,
+        n_periods=3,
         remainder="drop",
         column="week",
         input_range=(1, 52)
@@ -191,6 +192,12 @@ async def create_datetime_features(df):
     week_features = rbf_week.fit_transform(df[['week']])
     for i in range(week_features.shape[1]):
         df[f'rbf_week_{i}'] = week_features[:, i]
+
+    df['temp_hour_sin'] = df['Temperature'] * df['hour_sin']
+    df['temp_hour_cos'] = df['Temperature'] * df['hour_cos']
+
+    df['cloud_hour_sin'] =  df['hour_sin'] * (1-df['CloudCover'])
+    df['cloud_hour_cos'] = df['hour_cos'] * (1-df['CloudCover'])
 
     df['hour'] = df['hour'].astype('category')
     df['month'] = df['month'].astype('category')

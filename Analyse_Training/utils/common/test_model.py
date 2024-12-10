@@ -7,6 +7,9 @@ def test_model(model, scaler, test_df, test_columns):
 
     # Fülle fehlende Dummy-Spalten mit 0, falls welche fehlen
     missing_columns = set(test_columns) - set(test_df.columns)
+    test_df = test_df.copy()
+
+    # Then add the missing columns
     for col in missing_columns:
         test_df[col] = 0
 
@@ -28,7 +31,7 @@ def test_model(model, scaler, test_df, test_columns):
 
     return test_df
 
-def test_model_cv(pipeline, test_df, test_columns):
+def test_model_cv(pipeline, test_df, test_columns, preprocessor):
 
     categorical_cols = test_df.select_dtypes(include=['category']).columns
     for col in categorical_cols:
@@ -49,8 +52,18 @@ def test_model_cv(pipeline, test_df, test_columns):
     print(test_df[test_df.isna().any(axis=1)])
     print(test_df.head())
 
+    test_df = test_df.sort_values('dtm')
+
+    print(test_columns)
+    X = preprocessor.transform(test_df)
+
+    X = pd.DataFrame(
+        X.toarray(),
+        columns=preprocessor.get_feature_names_out()
+    )
     # Skaliere nur die Spalten, die in test_columns enthalten sind
-    X = test_df[test_columns]
+    X = X[test_columns]
+
 
     # Vorhersagen treffen
     y_pred = pipeline.predict(X)

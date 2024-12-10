@@ -23,7 +23,9 @@ def print_evaluation_simple_model(model, X_train, X_test, y_train, y_test, y_tra
 
     # Sort and display the top 10 coefficients
     coefficients_lr = pd.DataFrame({"Feature Name": feature_names, "Coefficient": model.coef_})
-    top_features = coefficients_lr.reindex(coefficients_lr["Coefficient"].abs().sort_values(ascending=False).index).head(10)
+    grenzwert = 0.1
+    top_features = coefficients_lr[abs(coefficients_lr["Coefficient"]) > grenzwert]
+    top_features = top_features.reindex(top_features["Coefficient"].abs().sort_values(ascending=False).index)
 
     # Append top 10 coefficients to markdown
     markdown_content += "### Top 10 Coefficients\n\n"
