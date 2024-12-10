@@ -1,7 +1,6 @@
 import numpy as np
 from datetime import datetime
 import pandas as pd
-from sklego.preprocessing import RepeatingBasisFunction
 from astral.sun import elevation, azimuth
 from astral import Observer
 from astral import LocationInfo

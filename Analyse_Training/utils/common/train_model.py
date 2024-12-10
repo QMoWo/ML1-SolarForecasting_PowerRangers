@@ -214,18 +214,6 @@ def train_model_cv(test_df: pd.DataFrame, columns: list, y_column: str, param_gr
 
 
 def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, param_grid: dict) -> tuple:
-    """
-    Trains a stacking model using a pipeline approach with Ridge, Random Forest, and Gradient Boosting as base learners.
-
-    Parameters:
-        test_df (pd.DataFrame): Input DataFrame.
-        columns (list): List of columns to use for training.
-        y_column (str): Column to predict.
-        param_grid (dict): Hyperparameter grid for GridSearchCV.
-
-    Returns:
-        tuple: Best pipeline, evaluation metrics, selected feature columns, best parameters.
-    """
     print("Starting stacking model training...")
 
     test_df = test_df.sort_values('dtm')  # Sortieren nach Datum
