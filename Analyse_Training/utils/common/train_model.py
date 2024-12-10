@@ -285,15 +285,17 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
 
     print("Feature preprocessing complete.")
 
+    tscv = TimeSeriesSplit(n_splits=5)
+
     # Ridge Regression
     ridge_param_grid = {
-        'alpha': [10]  # Regularization strength
+        'alpha': np.linspace(0, 20, 20)  # Regularization strength
     }
 
     ridge_search = GridSearchCV(
         estimator=Ridge(),
         param_grid=ridge_param_grid,
-        cv=3,
+        cv=tscv,
         scoring='neg_root_mean_squared_error',
         n_jobs=-1
     )
@@ -302,14 +304,14 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     print(f"Best params Ridge: {ridge_search.best_params_}")
     # Gradient Boosting
     gbr_param_grid = {
-        'n_estimators': [100],
-        'learning_rate': [0.01],
-        'max_depth': [5]
+        'n_estimators': [100, 150],
+        'learning_rate': [0.01, 0.05, 0.1],
+        'max_depth': [3, 5]
     }
     gbr_search = GridSearchCV(
         estimator=GradientBoostingRegressor(),
         param_grid=gbr_param_grid,
-        cv=3,
+        cv=tscv,
         scoring='neg_root_mean_squared_error',
         n_jobs=-1
     )
@@ -317,55 +319,55 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     best_gbr = gbr_search.best_estimator_
     print(f"Best params GradientBoosting: {gbr_search.best_params_}")
 
-    # # XGBoost
-    # xgb_param_grid = {
-    #     'n_estimators': [100],
-    #     'learning_rate': [0.01],
-    #     'max_depth': [3]
-    # }
-    # xgb_search = GridSearchCV(
-    #     estimator=xgb.XGBRegressor(),
-    #     param_grid=xgb_param_grid,
-    #     cv=3,
-    #     scoring='neg_root_mean_squared_error',
-    #     n_jobs=-1
-    # )
-    # xgb_search.fit(X_train, y_train)
-    # best_xgb = xgb_search.best_estimator_
-    # print(f"Best params XGB: {xgb_search.best_params_}")
+    # XGBoost
+    xgb_param_grid = {
+        'n_estimators': [100, 150],
+        'learning_rate': [0.01, 0.05, 0.1],
+        'max_depth': [3, 5]
+    }
+    xgb_search = GridSearchCV(
+        estimator=xgb.XGBRegressor(),
+        param_grid=xgb_param_grid,
+        cv=tscv,
+        scoring='neg_root_mean_squared_error',
+        n_jobs=-1
+    )
+    xgb_search.fit(X_train, y_train)
+    best_xgb = xgb_search.best_estimator_
+    print(f"Best params XGB: {xgb_search.best_params_}")
 
-    # dt_param_grid = {
-    #     'max_depth': [3],          # Maximale Tiefe des Baums
-    #     'min_samples_split': [5],      # Minimale Anzahl Samples für Split
-    #     'min_samples_leaf': [2]        # Minimale Anzahl Samples in Blättern
-    # }
-    # dt_search = GridSearchCV(
-    #     estimator=DecisionTreeRegressor(),
-    #     param_grid=dt_param_grid,
-    #     cv=3,
-    #     scoring='neg_root_mean_squared_error',
-    #     n_jobs=-1
-    # )
-    # dt_search.fit(X_train, y_train)
-    # best_dt = dt_search.best_estimator_
-    # print(f"Best params DTR: {dt_search.best_params_}")
+    dt_param_grid = {
+        'max_depth': [3, 5],          # Maximale Tiefe des Baums
+        'min_samples_split': [3, 5],      # Minimale Anzahl Samples für Split
+        'min_samples_leaf': [2, 5]        # Minimale Anzahl Samples in Blättern
+    }
+    dt_search = GridSearchCV(
+        estimator=DecisionTreeRegressor(),
+        param_grid=dt_param_grid,
+        cv=tscv,
+        scoring='neg_root_mean_squared_error',
+        n_jobs=-1
+    )
+    dt_search.fit(X_train, y_train)
+    best_dt = dt_search.best_estimator_
+    print(f"Best params DTR: {dt_search.best_params_}")
 
     rf_param_grid = {
-        'n_estimators': [150],
-        'max_depth': [7],
-        'min_samples_split': [7],
-        'max_samples': [0.7]       # Minimale Anzahl Samples in Blättern
+        'n_estimators': [100, 150],
+        'max_depth': [3, 5],
+        'min_samples_split': [3, 5],
+        'max_samples': [0.7, 0.9]       # Minimale Anzahl Samples in Blättern
     }
     rf_search = GridSearchCV(
         estimator=RandomForestRegressor(),
         param_grid=rf_param_grid,
-        cv=3,
+        cv=tscv,
         scoring='neg_root_mean_squared_error',
         n_jobs=-1
     )
     rf_search.fit(X_train, y_train)
     best_rf = rf_search.best_estimator_
-    print(f"Best params DTR: {rf_search.best_params_}")
+    print(f"Best params RF: {rf_search.best_params_}")
 
     print("Base learners optimized!")
 
@@ -381,16 +383,16 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
             #('select', SelectKBest(k=20)),
             ('model', best_gbr)
         ]))),
-        # ('xgb', Pipeline([
-        #     #('scaler', StandardScaler()),
-        #     #('select', SelectKBest(k=20)),
-        #     ('model', best_xgb)
-        # ])),
-        # ('dct', Pipeline([
-        #     # ('scaler', StandardScaler()),
-        #     # ('select', SelectKBest(k=20)),
-        #     ('model', best_dt)
-        # ])),
+        ('xgb', Pipeline([
+            #('scaler', StandardScaler()),
+            #('select', SelectKBest(k=20)),
+            ('model', best_xgb)
+        ])),
+        ('dct', Pipeline([
+            # ('scaler', StandardScaler()),
+            # ('select', SelectKBest(k=20)),
+            ('model', best_dt)
+        ])),
         ('rf', Pipeline([
             # ('scaler', StandardScaler()),
             # ('select', SelectKBest(k=20)),
@@ -402,7 +404,7 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     final_estimator = xgb.XGBRegressor()
 
     pipeline = Pipeline([
-        ('feature_selection', SelectKBest()),
+        #('feature_selection', SelectKBest()),
         ('stacking', StackingRegressor(
             estimators=base_learners,
             final_estimator=final_estimator
@@ -410,13 +412,13 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     ])
 
     full_param_grid_rf = {
-        'feature_selection__k': [40],
-        'stacking__final_estimator__n_estimators': [150],
-        'stacking__final_estimator__max_depth': [5],
-        'stacking__final_estimator__eta': [0.1],
+        #'feature_selection__k': [40],
+        'stacking__final_estimator__n_estimators': [100, 150],
+        'stacking__final_estimator__max_depth': [3, 5],
+        'stacking__final_estimator__eta': [0.1, 0.2],
     }
 
-    tscv = TimeSeriesSplit(n_splits=5)
+
 
     # Perform GridSearchCV
     print("Optimizing stacking regressor...")
@@ -441,59 +443,50 @@ def train_model_stacking(test_df: pd.DataFrame, columns: list, y_column: str, pa
     y_train_pred = best_pipeline.predict(X_train)
     y_test_pred = best_pipeline.predict(X_test)
 
-    y_train_pred = np.maximum(0, y_train_pred)
-    y_test_pred = np.maximum(0, y_test_pred)
+    plt.style.use('seaborn-v0_8-whitegrid')
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
 
-    plt.style.use('seaborn-v0_8-whitegrid')  # oder einfach weglassen
-    plt.figure(figsize=(10, 6))
-    plt.scatter(y_test, y_test_pred, alpha=0.5)
-    plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
-    plt.xlabel('Tatsächliche Werte')
-    plt.ylabel('Vorhergesagte Werte')
-    plt.title('Tatsächliche vs. Vorhergesagte Werte')
-    plt.grid(True)
+    # Oben links: Train - Tatsächlich vs Vorhergesagt
+    axes[0,0].scatter(y_train, y_train_pred, alpha=0.5)
+    axes[0,0].plot([y_train.min(), y_train.max()], [y_train.min(), y_train.max()], 'r--', lw=2)
+    axes[0,0].set_xlabel('Tatsächliche Werte')
+    axes[0,0].set_ylabel('Vorhergesagte Werte')
+    axes[0,0].set_title('Train: Tatsächliche vs. Vorhergesagte Werte')
+    axes[0,0].grid(True)
+
+    # Oben rechts: Train - Residuenplot
+    residuals_train = y_train - y_train_pred
+    axes[0,1].scatter(y_train_pred, residuals_train, alpha=0.5)
+    axes[0,1].axhline(y=0, color='r', linestyle='--')
+    axes[0,1].set_xlabel('Vorhergesagte Werte')
+    axes[0,1].set_ylabel('Residuen')
+    axes[0,1].set_title('Train: Residuenplot')
+    axes[0,1].grid(True)
+
+    # Unten links: Test - Tatsächlich vs Vorhergesagt
+    axes[1,0].scatter(y_test, y_test_pred, alpha=0.5)
+    axes[1,0].plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
+    axes[1,0].set_xlabel('Tatsächliche Werte')
+    axes[1,0].set_ylabel('Vorhergesagte Werte')
+    axes[1,0].set_title('Test: Tatsächliche vs. Vorhergesagte Werte')
+    axes[1,0].grid(True)
+
+    # Unten rechts: Test - Residuenplot
+    residuals_test = y_test - y_test_pred
+    axes[1,1].scatter(y_test_pred, residuals_test, alpha=0.5)
+    axes[1,1].axhline(y=0, color='r', linestyle='--')
+    axes[1,1].set_xlabel('Vorhergesagte Werte')
+    axes[1,1].set_ylabel('Residuen')
+    axes[1,1].set_title('Test: Residuenplot')
+    axes[1,1].grid(True)
+
     plt.tight_layout()
-
     plt.show()
 
-    plt.style.use('seaborn-v0_8-whitegrid')  # oder einfach weglassen
     plt.figure(figsize=(10, 6))
-    plt.scatter(y_train, y_train_pred, alpha=0.5)
-    plt.plot([y_train.min(), y_train.max()], [y_train.min(), y_train.max()], 'r--', lw=2)
-    plt.xlabel('Tatsächliche Werte')
-    plt.ylabel('Vorhergesagte Werte')
-    plt.title('Tatsächliche vs. Vorhergesagte Werte')
-    plt.grid(True)
-    plt.tight_layout()
-
-    plt.show()
-
-    plt.style.use('seaborn-v0_8-whitegrid')  # oder einfach weglassen
-    #y_pred = best_pipeline.predict(X_test)
-    residuals = y_test - y_test_pred
-    plt.figure(figsize=(10, 6))
-    plt.scatter(y_test_pred, residuals, alpha=0.5)
-    plt.axhline(y=0, color='r', linestyle='--')
-    plt.xlabel('Vorhergesagte Werte')
-    plt.ylabel('Residuen')
-    plt.title('Residuenplot')
-    plt.grid(True)
-    plt.tight_layout()
-
-    plt.show()
-
-    plt.style.use('seaborn-v0_8-whitegrid')  # oder einfach weglassen
-    #y_pred = best_pipeline.predict(X_test)
-    residuals = y_train - y_train_pred
-    plt.figure(figsize=(10, 6))
-    plt.scatter(y_train_pred, residuals, alpha=0.5)
-    plt.axhline(y=0, color='r', linestyle='--')
-    plt.xlabel('Vorhergesagte Werte')
-    plt.ylabel('Residuen')
-    plt.title('Residuenplot')
-    plt.grid(True)
-    plt.tight_layout()
-
+    sns.histplot(residuals_test, kde=True)
+    plt.title('Verteilung der Residuen')
+    plt.xlabel('Residuen')
     plt.show()
     # Evaluate the model
     evaluation = print_evaluation_stacking(
